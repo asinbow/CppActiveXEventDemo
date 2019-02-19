@@ -192,10 +192,6 @@ void readEventInterface(ITypeInfo *eventinfo, IConnectionPoint *cpoint) {
 		return;
 	}
 
-	IID conniid;
-	hr = cpoint->GetConnectionInterface(&conniid);
-	assert(hr == S_OK);
-
 	// get information about all event functions
 	for (UINT fd = 0; fd < eventattr->cFuncs; ++fd) {
 		FUNCDESC *funcdesc;
