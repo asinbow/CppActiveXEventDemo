@@ -9,6 +9,8 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <algorithm>
+#include <regex>
 
 #include <stdio.h>
 #include <tchar.h>
@@ -67,6 +69,170 @@ HRESULT OLEMethod(int nType, VARIANT *pvResult, IDispatch *pDisp, LPCOLESTR ptNa
 	return hr;
 }
 
+std::wstring getVarTypeName(TYPEDESC *tdesc) {
+	std::wstring str;
+	switch (tdesc->vt) {
+	case VT_EMPTY:
+		break;
+	case VT_VOID:
+		str = _T("void");
+		break;
+	case VT_LPWSTR:
+		str = _T("wchar_t *");
+		break;
+	case VT_BSTR:
+		str = _T("string");
+		break;
+	case VT_BOOL:
+		str = _T("bool");
+		break;
+	case VT_I1:
+		str = _T("char");
+		break;
+	case VT_I2:
+		str = _T("short");
+		break;
+	case VT_I4:
+	case VT_INT:
+		str = _T("int");
+		break;
+	case VT_I8:
+		str = _T("longlong");
+		break;
+	case VT_UI1:
+	case VT_UI2:
+	case VT_UI4:
+	case VT_UINT:
+		str = _T("uint");
+		break;
+	case VT_UI8:
+		str = _T("ulonglong");
+		break;
+	case VT_CY:
+		str = _T("longlong");
+		break;
+	case VT_R4:
+		str = _T("float");
+		break;
+	case VT_R8:
+		str = _T("double");
+		break;
+	case VT_DATE:
+		str = _T("DateTime");
+		break;
+	case VT_DISPATCH:
+		str = _T("IDispatch*");
+		break;
+	case VT_VARIANT:
+		str = _T("Variant");
+		break;
+	case VT_UNKNOWN:
+		str = _T("IUnknown*");
+		break;
+	case VT_HRESULT:
+		str = _T("HRESULT");
+		break;
+	case VT_PTR:
+		str = getVarTypeName(tdesc->lptdesc);
+		switch (tdesc->lptdesc->vt) {
+		case VT_VOID:
+			str = _T("void*");
+			break;
+		case VT_VARIANT:
+		case VT_BSTR:
+		case VT_I1:
+		case VT_I2:
+		case VT_I4:
+		case VT_I8:
+		case VT_UI1:
+		case VT_UI2:
+		case VT_UI4:
+		case VT_UI8:
+		case VT_BOOL:
+		case VT_R4:
+		case VT_R8:
+		case VT_INT:
+		case VT_UINT:
+		case VT_CY:
+			str += _T('&');
+			break;
+		case VT_PTR:
+			if (str == _T("Font") || str == _T("Pixmap")) {
+				str += _T('&');
+				break;
+			}
+			else if (str == _T("void*")) {
+				str = _T("void **");
+				break;
+			}
+			// FALLTHROUGH
+		default:
+			if (str == _T("Color"))
+				str += _T('&');
+			else if (str == _T("DateTime"))
+				str += _T('&');
+			else if (str == _T("VariantList"))
+				str += _T('&');
+			else if (str == _T("ByteArray"))
+				str += _T('&');
+			else if (str == _T("StringList"))
+				str += _T('&');
+			else if (str.size())
+				str += _T('&');
+			else if (str.size() && str != _T("Font") && str != _T("Pixmap") && str != _T("Variant"))
+				str += _T('*');
+		}
+		break;
+	case VT_SAFEARRAY:
+		switch (tdesc->lpadesc->tdescElem.vt) {
+			// some shortcuts, and generic support for lists of QVariant-supported types
+		case VT_UI1:
+			str = _T("ByteArray");
+			break;
+		case VT_BSTR:
+			str = _T("StringList");
+			break;
+		case VT_VARIANT:
+			str = _T("VariantList");
+			break;
+		default:
+			str = getVarTypeName(&tdesc->lpadesc->tdescElem);
+			if (str.size())
+				str = _T("List<") + str + _T('>');
+			break;
+		}
+		break;
+	case VT_CARRAY:
+		str = getVarTypeName(&tdesc->lpadesc->tdescElem);
+		if (str.size()) {
+			for (int index = 0; index < tdesc->lpadesc->cDims; ++index) {
+				ULONG cElements = tdesc->lpadesc->rgbounds[index].cElements;
+				std::wstringstream ss;
+				ss << _T('[') << cElements << _T(']');
+				str += ss.str();
+			}
+		}
+		break;
+	case VT_USERDEFINED:
+		str = _T("UserDefined");
+		break;
+
+		// VT_UNHANDLED(FILETIME);
+		// VT_UNHANDLED(BLOB);
+		// VT_UNHANDLED(ERROR);
+		// VT_UNHANDLED(DECIMAL);
+		// VT_UNHANDLED(LPSTR);
+	default:
+		break;
+	}
+
+	if (tdesc->vt & VT_BYREF)
+		str += _T('&');
+
+	std::regex_replace(str, std::wregex(_T("&\\*")), _T("**"));
+	return str;
+}
+
 ITypeInfo *g_eventinfo;
 
 std::wstring qaxTypeInfoNames(ITypeInfo *typeInfo, FUNCDESC* funcdesc) {
@@ -83,7 +249,8 @@ std::wstring qaxTypeInfoNames(ITypeInfo *typeInfo, FUNCDESC* funcdesc) {
 	std::wstringstream ss;
 	ss << _T("# ") << funcdesc->memid << _T(" ") << funcname << _T("(");
 	for (UINT p = 1; p < maxNamesOut; ++p) {
-		ss << bstrNames[p];
+		TYPEDESC *tdesc = &funcdesc->lprgelemdescParam[p - 1].tdesc;
+		ss << getVarTypeName(tdesc) << " " << bstrNames[p];
 		SysFreeString(bstrNames[p]);
 
 		if (p < maxNamesOut - 1) {
@@ -204,9 +371,9 @@ void readEventInterface(ITypeInfo *eventinfo, IConnectionPoint *cpoint) {
 			continue;
 		}
 
-		qaxTypeInfoNames(eventinfo, funcdesc);
+		std::wstring funcDef = qaxTypeInfoNames(eventinfo, funcdesc);
 		// list all availabe events
-		std::wcout << "Event available: " << qaxTypeInfoNames(eventinfo, funcdesc) << std::endl;
+		std::wcout << "Event available: " << funcDef << std::endl;
 
 		eventinfo->ReleaseFuncDesc(funcdesc);
 	}
