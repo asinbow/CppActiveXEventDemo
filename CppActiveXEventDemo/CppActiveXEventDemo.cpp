@@ -196,9 +196,6 @@ void readEventInterface(ITypeInfo *eventinfo, IConnectionPoint *cpoint) {
 	hr = cpoint->GetConnectionInterface(&conniid);
 	assert(hr == S_OK);
 
-	hr = cpoint->Advise(&g_handler, &g_cookie);
-	assert(hr == S_OK);
-
 	// get information about all event functions
 	for (UINT fd = 0; fd < eventattr->cFuncs; ++fd) {
 		FUNCDESC *funcdesc;
@@ -219,9 +216,12 @@ void readEventInterface(ITypeInfo *eventinfo, IConnectionPoint *cpoint) {
 	}
 	eventinfo->ReleaseTypeAttr(eventattr);
 
+	hr = cpoint->Advise(&g_handler, &g_cookie);
+	assert(hr == S_OK);
+
 	std::wcout << std::endl;
-	std::wcout << std::endl;
-	std::wcout << std::endl;
+
+	std::wcout << "@@@@@@@@@@Waiting events, please create a new Excel workbook@@@@@@@@@@" << std::endl;
 }
 
 void testExcel() {
@@ -245,7 +245,7 @@ void testExcel() {
 	UINT count;
 	hr = application->GetTypeInfoCount(&count);
 	assert(hr == S_OK);
-	std::wcout << _T("count: ") << count << std::endl;
+	// std::wcout << _T("count: ") << count << std::endl;
 
 	UINT index = 0;
 	ITypeInfo *dispInfo = nullptr;
@@ -284,9 +284,9 @@ void testExcel() {
 		assert(hr == S_OK);
 		OLECHAR* str;
 		StringFromCLSID(conniid, &str);
-		std::wcout << str << std::endl;
+		// std::wcout << str << std::endl;
 		StringFromCLSID(IID_IPropertyNotifySink, &str);
-		std::wcout << _T("???") << str << std::endl;
+		// std::wcout << _T("???") << str << std::endl;
 		// IID_IPropertyNotifySink;
 		// assert(conniid == IID_IPropertyNotifySink);
 		if (conniid == IID_IPropertyNotifySink) {
