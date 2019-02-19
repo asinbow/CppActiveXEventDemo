@@ -1,0 +1,7 @@
+*.swp
+.*~
+*.vcxproj.*
+
+.vs/
+Debug/
+Release/
